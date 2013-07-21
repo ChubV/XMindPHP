@@ -1,4 +1,5 @@
 {
+    "name": "chub/xmind-php",
     "description": "XMind file format reader",
     "keywords": ["xmind php mindmap"],
     "license": "BSD-3-Clause",
