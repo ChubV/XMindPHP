@@ -4,6 +4,8 @@ XMindPHP
 This is a XMind file format parsing library.
 XMind is powerful mind mapping tool.
 
+[![Build Status](https://secure.travis-ci.org/ChubV/XMindPHP.png)](http://travis-ci.org/ChubV/XMindPHP)
+
 Installation
 ============
 
