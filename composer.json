@@ -1,0 +1,25 @@
+{
+    "description": "XMind file format reader",
+    "keywords": ["xmind php mindmap"],
+    "license": "BSD-3-Clause",
+    "authors": [
+        {
+            "name": "Vladimir Chub",
+            "email": "v@chub.com.ua",
+            "homepage": "https://github.com/ChubV"
+        }
+    ],
+    "require": {
+        "php": ">=5.4",
+        "phpoption/phpoption": "1.2"
+    },
+    "autoload": {
+        "psr-0": { "Chub\\XMindPHP": "lib/" }
+    },
+    "minimum-stability": "alpha",
+    "extra": {
+        "branch-alias": {
+            "dev-master": "0.1.x-dev"
+        }
+    }
+}
