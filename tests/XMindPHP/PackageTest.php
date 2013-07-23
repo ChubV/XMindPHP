@@ -18,13 +18,13 @@ class PackageTest extends \PHPUnit_Framework_TestCase
 	public function testOpenIllegalFileShouldThrowException($file)
 	{
 		$package = new Package($file);
-		$package->getRootTopic();
+		$package->getSheet(0);
 	}
 
-	public function testOpenLegalFileShouldReturnRoot()
+	public function testOpenLegalFileShouldReturnSheetWithRootTopic()
 	{
 		$package = new Package(__DIR__ . '/../res/cr.xmind');
-		$rootTopic = $package->getRootTopic();
+		$rootTopic = $package->getSheet(0)->getRootTopic();
 
 		$this->assertInstanceOf('Chub\\XMindPHP\\RootTopic', $rootTopic);
 		$this->assertInstanceOf('Chub\\XMindPHP\\Topic', $rootTopic);

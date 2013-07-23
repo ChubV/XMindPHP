@@ -16,7 +16,7 @@ class TopicTest extends \PHPUnit_Framework_TestCase
 	protected function setUp()
 	{
 		$package = new Package(__DIR__ . '/../res/cr.xmind');
-		$this->rootTopic = $package->getRootTopic();
+		$this->rootTopic = $package->getSheet(0)->getRootTopic();
 
 		$this->assertInstanceOf('Chub\\XMindPHP\\RootTopic', $this->rootTopic);
 	}

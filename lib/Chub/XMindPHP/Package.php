@@ -10,22 +10,39 @@ use PhpOption\Option;
 class Package
 {
 	private $file;
-	private $rootTopic;
+	/** @var Sheet[] */
+	private $sheets;
+
+	private $initialized = false;
 
 	public function __construct($file)
 	{
 		$this->file = $file;
 	}
 
-	public function getRootTopic()
+	public function getSheet($index)
 	{
 		$this->init();
 
-		return $this->rootTopic;
+		return isset($this->sheets[$index])?$this->sheets[$index]:null;
+	}
+
+	/**
+	 * @return \ArrayIterator
+	 */
+	public function getSheetsIterator()
+	{
+		$this->init();
+
+		return new \ArrayIterator($this->sheets);
 	}
 
 	private function init()
 	{
+		if ($this->initialized) {
+			return;
+		}
+
 		try {
 			$xml = file_get_contents('zip://' . $this->file . '#content.xml');
 			if (empty($xml)) {
@@ -36,14 +53,18 @@ class Package
 		}
 
 		$this->parse($xml);
+		$this->initialized = true;
 	}
 
 	private function parse($xml)
 	{
 		$xml = simplexml_load_string($xml);
-		$this->rootTopic = new RootTopic();
-		$topic = Option::fromValue($xml->sheet->topic)->getOrCall($this->generateException('No root topic found'));
-		$this->parseTopic($topic, $this->rootTopic);
+		/** @var \SimpleXmlElement $sheet */
+		foreach ($xml->children() as $sheet) {
+			if ($sheet->getName() == 'sheet') {
+				$this->parseSheet($sheet);
+			}
+		}
 	}
 
 	private function generateException($message)
@@ -93,5 +114,16 @@ class Package
 			$topic->setDetachedTopics($children);
 		}
 
+	}
+
+	private function parseSheet(\SimpleXMLElement $xml)
+	{
+		$rt = new RootTopic();
+		$sheet = new Sheet();
+		$sheet->setRootTopic($rt)->setTitle((string)($xml->title))->setId((string)($xml->attributes()['id']));
+		$topic = Option::fromValue($xml->topic)->getOrCall($this->generateException('No root topic found'));
+		$this->parseTopic($topic, $rt);
+
+		$this->sheets[] = $sheet;
 	}
 }
