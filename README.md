@@ -23,4 +23,4 @@ Add support for:
 
 * boundaries
 * summaries
-* multiple sheets
+* relationships
