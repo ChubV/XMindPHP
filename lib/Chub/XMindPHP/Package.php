@@ -1,6 +1,5 @@
 <?php
 namespace Chub\XMindPHP;
-use PhpOption\Option;
 
 /**
  * XmindPackage.php
@@ -9,9 +8,9 @@ use PhpOption\Option;
  */
 class Package
 {
-	private $file;
-	/** @var Sheet[] */
-	private $sheets;
+    private $file;
+    private $rootTopic;
+    private $isJson = false;
 
 	private $initialized = false;
 
@@ -20,52 +19,55 @@ class Package
 		$this->file = $file;
 	}
 
-	public function getSheet($index)
-	{
-		$this->init();
+    public function getRootTopic()
+    {
+        $this->init();
 
-		return isset($this->sheets[$index])?$this->sheets[$index]:null;
-	}
-
-	/**
-	 * @return \ArrayIterator
-	 */
-	public function getSheetsIterator()
-	{
-		$this->init();
-
-		return new \ArrayIterator($this->sheets);
-	}
+        return $this->rootTopic;
+    }
 
 	private function init()
 	{
-		if ($this->initialized) {
-			return;
-		}
+        try {
+            try {
+                /** check if file is 2021 xmind -> use json instead of xml */
+                $data = file_get_contents('zip://' . $this->file . '#content.json');
+                $this->isJson = true;
+            } catch (\Exception $e) {
+                $data = file_get_contents('zip://' . $this->file . '#content.xml');
+                $this->isJson = false;
+            }
+            if (empty($data)) {
+                throw new RuntimeException('No content.xml found!');
+            }
+        } catch (\Exception $e) {
+            throw new RuntimeException($e->getMessage());
+        }
 
-		try {
-			$xml = file_get_contents('zip://' . $this->file . '#content.xml');
-			if (empty($xml)) {
-				throw new RuntimeException('No content.xml found!');
-			}
-		} catch (\Exception $e) {
-			throw new RuntimeException($e->getMessage());
-		}
-
-		$this->parse($xml);
-		$this->initialized = true;
+        $this->parse($data);
 	}
 
-	private function parse($xml)
-	{
-		$xml = simplexml_load_string($xml);
-		/** @var \SimpleXmlElement $sheet */
-		foreach ($xml->children() as $sheet) {
-			if ($sheet->getName() == 'sheet') {
-				$this->parseSheet($sheet);
-			}
-		}
-	}
+    private function parse($data)
+    {
+        if ($this->isJson) {
+            $data = json_decode($data);
+            if (!$data[0]->rootTopic) {
+                throw new RuntimeException('No root topic found');
+            } else {
+                $topic = $data[0]->rootTopic;
+            }
+        } else {
+            $data = simplexml_load_string($data);
+            if (!$data->sheet->topic) {
+                throw new RuntimeException('No root topic found');
+            } else {
+                $topic = $data->sheet->topic;
+            }
+        }
+        $this->rootTopic = new RootTopic();
+
+        $this->parseTopic($topic, $this->rootTopic);
+    }
 
 	private function generateException($message)
 	{
@@ -74,56 +76,82 @@ class Package
 		};
 	}
 
-	private function parseTopic(\SimpleXMLElement $xml, Topic $topic)
-	{
-		$topic->setNote($xml->notes->plain);
-		$topic->setId((string)$xml->attributes()['id']);
-		$topic->setTitle((string)$xml->title);
-		$topic->setLabel((string)$xml->labels->label);
+    private function parseTopic($data, Topic $topic)
+    {
 
-		if ($xml->children->count()) {
-			/** @var \SimpleXMLElement $topics */
-			foreach ($xml->children->children() as $topics) {
-				if ($topics->getName() == 'topics') {
-					$this->parseChildren($topics, $topic);
-				}
-			}
-		}
+        if ($this->isJson) {
+            $note = isset($data->notes) ? $data->notes->plain : null;
+            !isset($note) ? : $topic->setNote($note);
+
+            $topic->setId((string)$data->id);
+            $topic->setTitle((string)$data->title);
+
+            $label = isset($data->labels) ? (string) $data->labels->label : null;
+            !isset($note) ? : $topic->setLabel($label);
+
+            if (isset($data->children) && count((array)$data->children) > 0) {
+                /** children can be attached or detached */
+                foreach ($data->children as $typeOfChildren => $topics) {
+                    foreach ($topics as $t) {
+                        $t->type=$typeOfChildren;
+                    }
+                    $this->parseChildren($topics, $topic);
+                }
+            }
+        } else {
+            $topic->setNote($data->notes->plain);
+            $topic->setId((string)$data->attributes()['id']);
+            $topic->setTitle((string)$data->title);
+            $topic->setLabel((string)$data->labels->label);
+
+            if ($data->children->count()) {
+                /** @var \SimpleXMLElement $topics */
+                foreach ($data->children->children() as $topics) {
+                    if ($topics->getName() == 'topics') {
+                        $this->parseChildren($topics, $topic);
+                    }
+                }
+            }
+        }
 	}
 
-	private function parseChildren(\SimpleXMLElement $topics, Topic $topic)
+    private function parseChildren($topics, Topic $topic)
 	{
-		$type = (string)$topics->attributes()['type'];
-		if (!in_array($type, ['attached', 'detached'])) {
-			return;
-		}
+        if ($this->isJson) {
+            $children = [];
+            foreach ($topics as $child) {
+                $type = $child->type;
+                if (!in_array($type, ['attached', 'detached'])) {
+                    return;
+                }
+                $childTopic = new Topic();
+                $childTopic->setParent($topic);
+                $children[] = $childTopic;
+                $this->parseTopic($child, $childTopic);
+            }
 
-		$children = [];
-		/** @var \SimpleXMLElement $child */
-		foreach ($topics->children() as $child) {
-			$childTopic = new Topic();
-			$childTopic->setParent($topic);
-			$children[] = $childTopic;
-			$this->parseTopic($child, $childTopic);
-		}
+        } else {
 
-		if ($type == 'attached') {
-			$topic->setTopics($children);
-		} else {
-			/** @var RootTopic $topic */
-			$topic->setDetachedTopics($children);
-		}
+            $type = (string)$topics->attributes()['type'];
+            if (!in_array($type, ['attached', 'detached'])) {
+                return;
+            }
 
-	}
+            $children = [];
+            /** @var \SimpleXMLElement $child */
+            foreach ($topics->children() as $child) {
+                $childTopic = new Topic();
+                $childTopic->setParent($topic);
+                $children[] = $childTopic;
+                $this->parseTopic($child, $childTopic);
+            }
+        }
 
-	private function parseSheet(\SimpleXMLElement $xml)
-	{
-		$rt = new RootTopic();
-		$sheet = new Sheet();
-		$sheet->setRootTopic($rt)->setTitle((string)($xml->title))->setId((string)($xml->attributes()['id']));
-		$topic = Option::fromValue($xml->topic)->getOrCall($this->generateException('No root topic found'));
-		$this->parseTopic($topic, $rt);
-
-		$this->sheets[] = $sheet;
-	}
+        if ($type == 'attached') {
+            $topic->setTopics($children);
+        } else {
+            /** @var RootTopic $topic */
+            $topic->setDetachedTopics($children);
+        }
+    }
 }
